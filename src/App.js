@@ -6,13 +6,13 @@ import {
 // --- Constants ---
 const CATEGORIES = ['General', 'Personal', 'Work', 'Eco', 'Health'];
 const ECO_TASKS = [
-  "Use a reusable water bottle",
-  "Turn off unused lights",
-  "Compost food scraps",
-  "Walk or bike instead of driving",
-  "Avoid single-use plastics",
-  "Shop with reusable bags",
-  "Unplug electronics not in use"
+  { task: "Use a reusable water bottle", tags: ["drink", "water", "bottle"] },
+  { task: "Turn off unused lights", tags: ["light", "electricity", "energy"] },
+  { task: "Compost food scraps", tags: ["food", "compost", "waste"] },
+  { task: "Walk or bike instead of driving", tags: ["travel", "drive", "walk", "bike"] },
+  { task: "Avoid single-use plastics", tags: ["plastic", "shop", "packaging"] },
+  { task: "Shop with reusable bags", tags: ["shopping", "bags", "plastic"] },
+  { task: "Unplug electronics not in use", tags: ["electronics", "energy", "power"] }
 ];
 
 const App = () => {
@@ -24,36 +24,31 @@ const App = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [isCreating, setIsCreating] = useState(false);
+  const [expandedNote, setExpandedNote] = useState(null);
   const [newNote, setNewNote] = useState({
     title: '', content: '', category: 'General', ecoTasks: []
   });
-  const [aiSuggestions, setAiSuggestions] = useState(null);
+  const [aiSuggestions, setAiSuggestions] = useState([]);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('econotes_data', JSON.stringify(notes));
   }, [notes]);
 
-  // --- AI Logic (simple simulation) ---
+  // --- Dynamic AI Suggestions ---
   const getAiSuggestions = () => {
-    if (!newNote.content || newNote.content.length < 5) return;
+    if (!newNote.content || newNote.content.length < 3) return;
     setIsAnalyzing(true);
     setTimeout(() => {
       const content = newNote.content.toLowerCase();
-      let suggestion = {
-        ecoAction: ECO_TASKS[Math.floor(Math.random() * ECO_TASKS.length)]
-      };
-
-      // Basic content-based suggestions
-      if (content.includes("eat") || content.includes("food")) {
-        suggestion.ecoAction = "Try a plant-based meal today";
-      } else if (content.includes("buy") || content.includes("shop")) {
-        suggestion.ecoAction = "Check for plastic-free packaging options";
-      }
-
-      setAiSuggestions(suggestion);
+      let filteredTasks = ECO_TASKS.filter(t =>
+        t.tags.some(tag => content.includes(tag))
+      );
+      if (filteredTasks.length === 0) filteredTasks = ECO_TASKS;
+      const suggestion = filteredTasks[Math.floor(Math.random() * filteredTasks.length)];
+      setAiSuggestions([suggestion.task]);
       setIsAnalyzing(false);
-    }, 1000);
+    }, 800);
   };
 
   const addNote = () => {
@@ -62,11 +57,11 @@ const App = () => {
       ...newNote,
       id: Date.now(),
       completedEcoTasks: [],
-      points: 0
+      points: newNote.ecoTasks.length * 10
     };
     setNotes([noteToAdd, ...notes]);
     setNewNote({ title: '', content: '', category: 'General', ecoTasks: [] });
-    setAiSuggestions(null);
+    setAiSuggestions([]);
     setIsCreating(false);
   };
 
@@ -76,7 +71,7 @@ const App = () => {
     setNotes(notes.map(note => {
       if (note.id === noteId) {
         const isDone = note.completedEcoTasks.includes(task);
-        const newCompleted = isDone 
+        const newCompleted = isDone
           ? note.completedEcoTasks.filter(t => t !== task)
           : [...note.completedEcoTasks, task];
         return { ...note, completedEcoTasks: newCompleted, points: newCompleted.length * 10 };
@@ -139,19 +134,28 @@ const App = () => {
         {/* Notes Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {filteredNotes.map(note => (
-            <div key={note.id} className={`p-4 rounded-2xl border ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100 shadow-sm'}`}>
+            <div 
+              key={note.id} 
+              className={`p-4 rounded-2xl border cursor-pointer ${darkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-100 shadow-sm'}`}
+              onClick={() => setExpandedNote(expandedNote === note.id ? null : note.id)}
+            >
               <div className="flex justify-between mb-2">
                 <span className="text-[10px] uppercase font-bold text-emerald-500">{note.category}</span>
-                <button onClick={() => deleteNote(note.id)} className="text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
+                <button onClick={(e) => { e.stopPropagation(); deleteNote(note.id); }} className="text-slate-400 hover:text-red-500"><Trash2 size={16} /></button>
               </div>
               <h3 className="font-bold text-lg">{note.title || 'Untitled'}</h3>
-              <p className="text-sm text-slate-500 mb-4">{note.content}</p>
-              {note.ecoTasks.length > 0 && (
-                <div className="border-t dark:border-slate-700 pt-3 flex flex-wrap gap-2">
-                  {note.ecoTasks.map(t => (
-                    <button key={t} onClick={() => toggleEcoTask(note.id, t)} className={`text-[10px] px-2 py-1 rounded-md border ${note.completedEcoTasks.includes(t) ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>{t}</button>
-                  ))}
-                </div>
+              {expandedNote === note.id && (
+                <>
+                  <p className="text-sm text-slate-500 mb-2">{note.content}</p>
+                  {note.ecoTasks.length > 0 && (
+                    <div className="border-t dark:border-slate-700 pt-2 flex flex-wrap gap-2">
+                      {note.ecoTasks.map(t => (
+                        <button key={t} onClick={(e) => { e.stopPropagation(); toggleEcoTask(note.id, t); }} className={`text-[10px] px-2 py-1 rounded-md border ${note.completedEcoTasks.includes(t) ? 'bg-emerald-500 text-white' : 'text-slate-500'}`}>{t}</button>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-xs mt-1 font-bold">Points: {note.points}</p>
+                </>
               )}
             </div>
           ))}
@@ -185,9 +189,9 @@ const App = () => {
                   {isAnalyzing ? <Loader2 size={12} className="animate-spin" /> : <Zap size={12} />} Analyze
                 </button>
               </div>
-              {aiSuggestions && (
-                <button onClick={() => setNewNote({...newNote, ecoTasks: [...newNote.ecoTasks, aiSuggestions.ecoAction]})} className="text-xs text-left italic hover:underline">{aiSuggestions.ecoAction} (+Add)</button>
-              )}
+              {aiSuggestions.map((s, i) => (
+                <button key={i} onClick={() => setNewNote({...newNote, ecoTasks: [...newNote.ecoTasks, s]})} className="text-xs text-left italic hover:underline">{s} (+Add)</button>
+              ))}
             </div>
 
             <button onClick={addNote} className="w-full py-3 bg-emerald-500 text-white rounded-xl font-bold">Save Note</button>
